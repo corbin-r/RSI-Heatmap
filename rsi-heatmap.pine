@@ -1,0 +1,55 @@
+// This Pine Script™ indicator plots RSI with a heatmap of strength zones
+//@version=6
+indicator("RSI Heatmap", shorttitle="RSI-Heatmap", overlay=false, precision=2)
+
+// ═══════════════════════════════════════════════════════════════
+// INPUTS
+// ═══════════════════════════════════════════════════════════════
+length = input.int(14, "RSI Length", minval=1)
+useSMA = input.bool(true, "Use SMA (vs Wilder's smoothing)")
+overbought = input.int(70, "Overbought Level", minval=50, maxval=90)
+oversold = input.int(30, "Oversold Level", minval=10, maxval=50)
+
+// Heatmap settings
+showHeatmap = input.bool(true, "Show Strength Zone Heatmap", group="Heatmap")
+heatmapOpacity = input.int(85, "Heatmap Opacity", minval=50, maxval=100, group="Heatmap")
+highZoneColor = input.color(color.red, "High Strength Zone", group="Heatmap")
+lowZoneColor = input.color(color.lime, "Low Strength Zone", group="Heatmap")
+midZoneColor = input.color(color.gray, "Mid Zone", group="Heatmap")
+
+// ═══════════════════════════════════════════════════════════════
+// RSI CALCULATION
+// ═══════════════════════════════════════════════════════════════
+// SMA-based RSI when useSMA=true; Wilder's smoothing when false
+change = ta.change(close)
+gain = math.max(change, 0)
+loss = math.max(-change, 0)
+
+avgGain = useSMA ? ta.sma(gain, length) : ta.rma(gain, length)
+avgLoss = useSMA ? ta.sma(loss, length) : ta.rma(loss, length)
+
+rs = avgLoss != 0 ? avgGain / avgLoss : avgGain != 0 ? 1e10 : 1.0
+rsi = 100.0 - (100.0 / (1.0 + rs))
+
+// ═══════════════════════════════════════════════════════════════
+// STRENGTH ZONE HEATMAP
+// ═══════════════════════════════════════════════════════════════
+// Gradient color from oversold (low) to overbought (high)
+heatmapColor = color.from_gradient(rsi, 0, 100, lowZoneColor, highZoneColor)
+heatmapColorTransparent = color.new(heatmapColor, 100 - heatmapOpacity)
+
+// RSI line color based on zone
+lineColor = rsi >= overbought ? highZoneColor : rsi <= oversold ? lowZoneColor : midZoneColor
+
+// ═══════════════════════════════════════════════════════════════
+// PLOTS
+// ═══════════════════════════════════════════════════════════════
+// Smooth gradient fill between baseline and RSI (only underneath the line)
+baseline = plot(0, "Baseline", display=display.none)
+rsiPlot = plot(rsi, "RSI", color=lineColor, linewidth=3)
+fill(baseline, rsiPlot, showHeatmap ? heatmapColorTransparent : na)
+
+// Zone reference lines
+hline(overbought, "Overbought", color=color.new(highZoneColor, 50), linestyle=hline.style_dashed)
+hline(oversold, "Oversold", color=color.new(lowZoneColor, 50), linestyle=hline.style_dashed)
+hline(50, "Midline", color=color.new(color.gray, 70), linestyle=hline.style_dotted)
